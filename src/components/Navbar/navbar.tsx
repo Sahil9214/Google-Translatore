@@ -57,22 +57,22 @@ export default function Navbar({ toggleSidebar }: NavbarProps) {
 
       <div className="flex items-center">
         <button
-          className="p-2 text-gray-500 hover:bg-gray-100 rounded-full"
+          className="p-2 text-gray-500 hover:bg-gray-100 rounded-full disabled:cursor-not-allowed"
           aria-label="Settings"
         >
           <Settings size={24} />
         </button>
         <button
-          className="p-2 text-gray-500 hover:bg-gray-100 rounded-full ml-1"
+          className="p-2 text-gray-500 hover:bg-gray-100 rounded-full ml-1 disabled:cursor-not-allowed"
           aria-label="Google apps"
         >
           <Grid3X3 size={24} />
         </button>
         <button
-          className="p-1 ml-1 rounded-full overflow-hidden"
+          className="p-1 ml-1 rounded-full overflow-hidden "
           aria-label="User profile"
         >
-          <div className="w-8 h-8 rounded-full bg-[#c2e7ff] flex items-center justify-center">
+          <div className="w-8 h-8 rounded-full bg-[#c2e7ff] flex items-center justify-center cursor-pointer">
             <User size={20} className="text-[#1a73e8]" />
           </div>
         </button>

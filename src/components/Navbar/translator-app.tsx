@@ -1,10 +1,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-
+import AuthModal from "@/components/authModel";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIsMobile } from "@/hooks/use-mobile";
+import {
+  getLanguageCode as getSpeechLanguageCode,
+  speechToTextService,
+} from "@/lib/speech-to-text";
+import {
+  getLanguageCode as getSpeechSynthesisLanguageCode,
+  textToSpeechService,
+} from "@/lib/text-to-speech";
 import { LANGUAGES } from "@/utils/language.constant";
+import axios from "axios";
 import {
   ArrowLeftRight,
   Copy,
@@ -14,7 +23,9 @@ import {
   Mic,
   Settings,
   Star,
+  Volume2,
 } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import LanguageSelector from "./language-selector";
 
@@ -27,16 +38,48 @@ export default function TranslatorApp() {
   const [showSourceLanguages, setShowSourceLanguages] = useState(false);
   const [showTargetLanguages, setShowTargetLanguages] = useState(false);
   const isMobile = useIsMobile();
+  const { data: session, status } = useSession();
+  const [translationAttempts, setTranslationAttempts] = useState(0);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
-  // Simulate translation (in a real app, this would call an API)
-  useEffect(() => {
-    if (sourceText) {
-      setTranslatedText(
-        `This is a simulated translation from ${sourceLanguage} to ${targetLanguage}: "${sourceText}"`
-      );
-    } else {
-      setTranslatedText("");
+  const translateText = async (text: string) => {
+    if (!text) return;
+
+    // Check if user needs to authenticate
+    if (translationAttempts > 0 && !session) {
+      setShowAuthModal(true);
+      return;
     }
+
+    try {
+      const response = await axios.post("/api/translation", {
+        text,
+        sourceLanguage,
+        targetLanguage,
+      });
+
+      if (response.data.translatedText) {
+        setTranslatedText(response.data.translatedText);
+        setTranslationAttempts((prev) => prev + 1);
+      }
+    } catch (error) {
+      console.error("Translation error:", error);
+      setTranslatedText("Translation failed. Please try again.");
+    }
+  };
+
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      if (sourceText) {
+        translateText(sourceText);
+      } else {
+        setTranslatedText("");
+      }
+    }, 1000); // Wait for 1 second after user stops typing
+
+    return () => clearTimeout(debounceTimer);
   }, [sourceText, sourceLanguage, targetLanguage]);
 
   const handleSwapLanguages = () => {
@@ -45,8 +88,84 @@ export default function TranslatorApp() {
     setTargetLanguage(temp);
   };
 
+  const handleSpeechToText = () => {
+    if (!speechToTextService.isSupported()) {
+      alert("Speech recognition is not supported in your browser.");
+      return;
+    }
+
+    if (isListening) {
+      // Stop listening
+      speechToTextService.stopListening();
+      setIsListening(false);
+      return;
+    }
+
+    // Start listening
+    setIsListening(true);
+    speechToTextService.startListening({
+      language: getSpeechLanguageCode(sourceLanguage),
+      onResult: (transcript) => {
+        setSourceText(transcript);
+      },
+      onError: (error) => {
+        console.error("Speech recognition error:", error);
+        setIsListening(false);
+      },
+      onEnd: () => {
+        setIsListening(false);
+      },
+    });
+  };
+
+  const speakTranslatedText = () => {
+    if (!textToSpeechService.isSupported()) {
+      alert("Text-to-speech is not supported in your browser.");
+      return;
+    }
+
+    if (isSpeaking) {
+      textToSpeechService.stop();
+      setIsSpeaking(false);
+      return;
+    }
+
+    if (!translatedText) return;
+
+    setIsSpeaking(true);
+    textToSpeechService.speak(translatedText, {
+      language: getSpeechSynthesisLanguageCode(targetLanguage),
+      rate: 1.0,
+      onEnd: () => {
+        setIsSpeaking(false);
+      },
+      onError: (error) => {
+        console.error("Text-to-speech error:", error);
+        setIsSpeaking(false);
+      },
+    });
+  };
+
+  const copyToClipboard = () => {
+    if (translatedText) {
+      navigator.clipboard
+        .writeText(translatedText)
+        .then(() => {
+          // You could add a toast notification here
+          console.log("Copied to clipboard!");
+        })
+        .catch((err) => {
+          console.error("Failed to copy:", err);
+        });
+    }
+  };
+
   return (
     <div className="w-full max-w-6xl mx-auto p-4">
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+      />
       {isMobile ? (
         <MobileLayout
           sourceText={sourceText}
@@ -63,6 +182,11 @@ export default function TranslatorApp() {
           showTargetLanguages={showTargetLanguages}
           setShowTargetLanguages={setShowTargetLanguages}
           handleSwapLanguages={handleSwapLanguages}
+          handleSpeechToText={handleSpeechToText}
+          isListening={isListening}
+          speakTranslatedText={speakTranslatedText}
+          isSpeaking={isSpeaking}
+          copyToClipboard={copyToClipboard}
         />
       ) : (
         <DesktopLayout
@@ -80,6 +204,11 @@ export default function TranslatorApp() {
           showTargetLanguages={showTargetLanguages}
           setShowTargetLanguages={setShowTargetLanguages}
           handleSwapLanguages={handleSwapLanguages}
+          handleSpeechToText={handleSpeechToText}
+          isListening={isListening}
+          speakTranslatedText={speakTranslatedText}
+          isSpeaking={isSpeaking}
+          copyToClipboard={copyToClipboard}
         />
       )}
     </div>
@@ -101,6 +230,11 @@ function DesktopLayout({
   showTargetLanguages,
   setShowTargetLanguages,
   handleSwapLanguages,
+  handleSpeechToText,
+  isListening,
+  speakTranslatedText,
+  isSpeaking,
+  copyToClipboard,
 }: any) {
   return (
     <div className="flex flex-col">
@@ -112,27 +246,8 @@ function DesktopLayout({
           >
             <span className="text-blue-600">🔤</span> Text
           </TabsTrigger>
-          <TabsTrigger
-            value="images"
-            className="data-[state=active]:bg-white data-[state=active]:shadow-sm flex items-center gap-2"
-          >
-            <span className="text-blue-600">🖼️</span> Images
-          </TabsTrigger>
-          <TabsTrigger
-            value="documents"
-            className="data-[state=active]:bg-white data-[state=active]:shadow-sm flex items-center gap-2"
-          >
-            <span className="text-blue-600">📄</span> Documents
-          </TabsTrigger>
-          <TabsTrigger
-            value="websites"
-            className="data-[state=active]:bg-white data-[state=active]:shadow-sm flex items-center gap-2"
-          >
-            <span className="text-blue-600">🌐</span> Websites
-          </TabsTrigger>
         </TabsList>
       </Tabs>
-
       <div className="flex gap-4 mb-2">
         <div className="flex items-center gap-2">
           <div
@@ -195,8 +310,17 @@ function DesktopLayout({
             placeholder="Enter text"
           />
           <div className="flex justify-between items-center p-2 border-t">
-            <Button variant="ghost" size="icon">
-              <Mic className="h-5 w-5 text-gray-500" />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleSpeechToText}
+              className={isListening ? "bg-blue-100" : ""}
+            >
+              <Mic
+                className={`h-5 w-5 ${
+                  isListening ? "text-blue-500" : "text-gray-500"
+                }`}
+              />
             </Button>
             <div className="text-sm text-gray-500">
               {sourceText.length} / 5,000
@@ -211,7 +335,25 @@ function DesktopLayout({
             )}
           </div>
           <div className="flex justify-end items-center p-2 border-t">
-            <Button variant="ghost" size="icon">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={speakTranslatedText}
+              className={isSpeaking ? "bg-blue-100 mr-2" : "mr-2"}
+              disabled={!translatedText}
+            >
+              <Volume2
+                className={`h-5 w-5 ${
+                  isSpeaking ? "text-blue-500" : "text-gray-500"
+                }`}
+              />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={copyToClipboard}
+              disabled={!translatedText}
+            >
               <Copy className="h-5 w-5 text-gray-500" />
             </Button>
           </div>
@@ -219,13 +361,19 @@ function DesktopLayout({
       </div>
 
       <div className="flex justify-center mt-8 gap-12">
-        <Button variant="ghost" className="flex flex-col items-center gap-2">
+        <Button
+          variant="ghost"
+          className="flex flex-col items-center gap-2 disabled:opacity-0"
+        >
           <div className="w-12 p-4 h-12 rounded-full border flex items-center justify-center">
             <History className="h-6 w-6 text-gray-600" />
           </div>
           <span className="text-sm text-gray-600">History</span>
         </Button>
-        <Button variant="ghost" className="flex flex-col items-center gap-2">
+        <Button
+          variant="ghost"
+          className="flex flex-col items-center gap-2 disabled:opacity-0"
+        >
           <div className="w-12 p-4 h-12 rounded-full border flex items-center justify-center">
             <Star className="h-6 w-6 text-gray-600" />
           </div>
@@ -251,6 +399,11 @@ function MobileLayout({
   showTargetLanguages,
   setShowTargetLanguages,
   handleSwapLanguages,
+  handleSpeechToText,
+  isListening,
+  speakTranslatedText,
+  isSpeaking,
+  copyToClipboard,
 }: any) {
   return (
     <div className="flex flex-col">
@@ -361,8 +514,17 @@ function MobileLayout({
           placeholder="Enter text"
         />
         <div className="flex justify-between items-center p-2 border-t">
-          <Button variant="ghost" size="icon">
-            <Mic className="h-5 w-5 text-gray-500" />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleSpeechToText}
+            className={isListening ? "bg-blue-100" : ""}
+          >
+            <Mic
+              className={`h-5 w-5 ${
+                isListening ? "text-blue-500" : "text-gray-500"
+              }`}
+            />
           </Button>
           <div className="text-sm text-gray-500">
             {sourceText.length} / 5,000
@@ -375,10 +537,28 @@ function MobileLayout({
           {translatedText || <span className="text-gray-400">Translation</span>}
         </div>
         <div className="flex justify-end items-center p-2 border-t">
-          <Button variant="ghost" size="icon">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={speakTranslatedText}
+            className={isSpeaking ? "bg-blue-100 mr-2" : "mr-2"}
+            disabled={!translatedText}
+          >
+            <Volume2
+              className={`h-5 w-5 ${
+                isSpeaking ? "text-blue-500" : "text-gray-500"
+              }`}
+            />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={() => {}}>
             <Edit className="h-5 w-5 text-gray-500" />
           </Button>
-          <Button variant="ghost" size="icon">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={copyToClipboard}
+            disabled={!translatedText}
+          >
             <Copy className="h-5 w-5 text-gray-500" />
           </Button>
         </div>

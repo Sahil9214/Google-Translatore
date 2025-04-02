@@ -1,4 +1,7 @@
-import openai from "@/lib/openai";
+import { saveTranslationHistory } from "@/config/db";
+import { authOptions } from "@/lib/auth";
+import geminiPro from "@/lib/gemini";
+import { getServerSession } from "next-auth/next";
 import { NextResponse } from "next/server";
 
 interface TranslationRequest {
@@ -7,32 +10,67 @@ interface TranslationRequest {
   targetLanguage: string;
 }
 
+console.log("Environment variables:", {
+  hasGeminiKey: !!process.env.GEMINI_API_KEY,
+  keyLength: process.env.GEMINI_API_KEY?.length,
+});
+
 export async function POST(request: Request) {
-  const body: TranslationRequest = await request.json();
-  const { text, sourceLanguage, targetLanguage } = body;
-
-  if (!text || !targetLanguage) {
-    return NextResponse.json(
-      { error: "Text and target language are required" },
-      { status: 400 }
-    );
-  }
-
   try {
-    const prompt = `Translate the following text from ${sourceLanguage} to ${targetLanguage}. Only return the translated text without any explanations:\n\n${text}`;
-
-    const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.3, // Lower temperature for more accurate translations
-      max_tokens: 1000,
+    console.log("Environment variables:", {
+      hasGeminiKey: !!process.env.GEMINI_API_KEY,
+      keyLength: process.env.GEMINI_API_KEY?.length,
     });
 
-    return NextResponse.json({
-      translatedText: response.choices[0].message.content?.trim(),
+    const body: TranslationRequest = await request.json();
+    const { text, sourceLanguage, targetLanguage } = body;
+
+    if (!text || !targetLanguage) {
+      return NextResponse.json(
+        { error: "Text and target language are required" },
+        { status: 400 }
+      );
+    }
+
+    const prompt = `You are a professional translator. Translate the following text from ${sourceLanguage} to ${targetLanguage}. Only return the translated text without any explanations or quotes:\n\n${text}`;
+    console.log("Prompt:", prompt);
+
+    // Use Gemini model for translation
+    const result = await geminiPro.generateContent(prompt);
+    const response = await result.response;
+    const translatedText = response.text().trim();
+
+    if (!translatedText) {
+      throw new Error("No translation received from Gemini");
+    }
+
+    // Log for debugging
+    console.log("Translation request:", {
+      sourceText: text,
+      sourceLanguage,
+      targetLanguage,
+      translatedText,
     });
+
+    // Save translation history if user is authenticated
+    const session = await getServerSession(authOptions);
+    if (session?.user?.email) {
+      await saveTranslationHistory({
+        userId: session.user.email,
+        sourceText: text,
+        translatedText: translatedText || "",
+        sourceLanguage,
+        targetLanguage,
+        timestamp: new Date(),
+      });
+    }
+
+    return NextResponse.json({ translatedText });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: "Translation failed" }, { status: 500 });
+    console.error("Translation error:", error);
+    return NextResponse.json(
+      { error: "Translation failed: " + (error as Error).message },
+      { status: 500 }
+    );
   }
 }

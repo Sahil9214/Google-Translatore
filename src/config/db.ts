@@ -1,4 +1,4 @@
-import clientPromise from "./mongodb";
+import clientPromise from "@/lib/mongodb";
 
 interface TranslationHistory {
   userId: string;
@@ -10,19 +10,27 @@ interface TranslationHistory {
 }
 
 export async function saveTranslationHistory(translation: TranslationHistory) {
-  const client = await clientPromise;
-  const db = client.db("translator");
-
-  await db.collection("translations").insertOne(translation);
+  try {
+    const client = await clientPromise;
+    const db = client.db("translator");
+    await db.collection("translations").insertOne(translation);
+    console.log("Translation saved to history");
+  } catch (error) {
+    console.error("Error saving translation history:", error);
+  }
 }
 
 export async function getTranslationHistory(userId: string) {
-  const client = await clientPromise;
-  const db = client.db("translator");
-
-  return await db
-    .collection("translations")
-    .find({ userId })
-    .sort({ timestamp: -1 })
-    .toArray();
+  try {
+    const client = await clientPromise;
+    const db = client.db("translator");
+    return await db
+      .collection("translations")
+      .find({ userId })
+      .sort({ timestamp: -1 })
+      .toArray();
+  } catch (error) {
+    console.error("Error getting translation history:", error);
+    return [];
+  }
 }
