@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export interface SpeechToTextOptions {
   language?: string;
   continuous?: boolean;
@@ -8,20 +9,8 @@ export interface SpeechToTextOptions {
 }
 
 export class SpeechToTextService {
-  private recognition: SpeechRecognition | null = null;
+  private recognition: any = null;
   private isListening: boolean = false;
-
-  constructor() {
-    if (typeof window !== "undefined") {
-      // Browser environment check
-      const SpeechRecognition =
-        window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (SpeechRecognition) {
-        this.recognition = new SpeechRecognition();
-      }
-    }
-  }
-
   public isSupported(): boolean {
     return !!this.recognition;
   }
@@ -46,9 +35,9 @@ export class SpeechToTextService {
     this.recognition.interimResults = options.interimResults || true;
 
     // Set up callbacks
-    this.recognition.onresult = (event) => {
+    this.recognition.onresult = (event: any) => {
       const transcript = Array.from(event.results)
-        .map((result) => result[0].transcript)
+        .map((result: any) => result[0].transcript)
         .join("");
 
       if (options.onResult) {
@@ -56,7 +45,7 @@ export class SpeechToTextService {
       }
     };
 
-    this.recognition.onerror = (event) => {
+    this.recognition.onerror = (event: any) => {
       if (options.onError) {
         options.onError(event.error);
       }

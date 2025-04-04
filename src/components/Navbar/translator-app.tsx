@@ -1,6 +1,6 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import AuthModal from "@/components/authModel";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -25,7 +25,6 @@ import {
   Star,
   Volume2,
 } from "lucide-react";
-import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import LanguageSelector from "./language-selector";
 
@@ -38,20 +37,11 @@ export default function TranslatorApp() {
   const [showSourceLanguages, setShowSourceLanguages] = useState(false);
   const [showTargetLanguages, setShowTargetLanguages] = useState(false);
   const isMobile = useIsMobile();
-  const { data: session, status } = useSession();
-  const [translationAttempts, setTranslationAttempts] = useState(0);
-  const [showAuthModal, setShowAuthModal] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
 
   const translateText = async (text: string) => {
     if (!text) return;
-
-    // Check if user needs to authenticate
-    if (translationAttempts > 0 && !session) {
-      setShowAuthModal(true);
-      return;
-    }
 
     try {
       const response = await axios.post("/api/translation", {
@@ -62,7 +52,6 @@ export default function TranslatorApp() {
 
       if (response.data.translatedText) {
         setTranslatedText(response.data.translatedText);
-        setTranslationAttempts((prev) => prev + 1);
       }
     } catch (error) {
       console.error("Translation error:", error);
@@ -162,10 +151,6 @@ export default function TranslatorApp() {
 
   return (
     <div className="w-full max-w-6xl mx-auto p-4">
-      <AuthModal
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-      />
       {isMobile ? (
         <MobileLayout
           sourceText={sourceText}
