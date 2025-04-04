@@ -55,7 +55,7 @@ NEXTAUTH_URL=
 
 npm run dev
 
-# How to use
+### How to use
 
 🔹 Text Translation – Enter your text, select a target language, and click "Translate".
 🔹 Speech-to-Text – Click the 🎤 microphone icon, speak, and see your words converted to text.
