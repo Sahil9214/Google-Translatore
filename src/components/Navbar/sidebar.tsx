@@ -83,30 +83,6 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 Privacy & Terms
               </Link>
             </li>
-            <li>
-              <Link
-                href="/help"
-                className="block px-4 py-3 text-gray-800 hover:bg-gray-100 border-b border-gray-200"
-              >
-                Help
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/feedback"
-                className="block px-4 py-3 text-gray-800 hover:bg-gray-100 border-b border-gray-200"
-              >
-                Send feedback
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/about-google"
-                className="block px-4 py-3 text-gray-800 hover:bg-gray-100 border-b border-gray-200"
-              >
-                About Google
-              </Link>
-            </li>
           </ul>
         </nav>
       </div>
